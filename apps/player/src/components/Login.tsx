@@ -7,6 +7,22 @@ import { BrandMark } from './NavBar.js';
 
 const DEMO_TOKEN = 'demotoken1234567890';
 
+/**
+ * Default server for the login form. On the web deployment the player shares
+ * the API origin, so it can be pre-filled. Inside a packaged app (Capacitor
+ * WebView) the origin is localhost or capacitor://, which is meaningless as
+ * an IPTVMaster address, so the field starts empty there.
+ */
+function defaultServerUrl(): string {
+  const origin = window.location.origin;
+  const isPackaged =
+    !import.meta.env.DEV &&
+    (origin.startsWith('capacitor://') ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1');
+  return isPackaged ? '' : origin;
+}
+
 export function Login({
   branding,
   onLogin,
@@ -14,7 +30,7 @@ export function Login({
   branding: BrandingConfig;
   onLogin: (session: PlayerSession) => void;
 }) {
-  const [serverUrl, setServerUrl] = useState(() => window.location.origin);
+  const [serverUrl, setServerUrl] = useState(defaultServerUrl);
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

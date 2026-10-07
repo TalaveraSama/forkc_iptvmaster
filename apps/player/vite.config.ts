@@ -8,6 +8,11 @@ import { defineConfig } from 'vite';
 const apiTarget =
   process.env['IPTVMASTER_API_TARGET'] ?? 'http://127.0.0.1:8080';
 
+// The web deployment lives under /player/ on the API origin. Packaged builds
+// (e.g. a Capacitor APK, which serves the bundle from the app root) override
+// this with IPTVMASTER_PLAYER_BASE=/ before building.
+const playerBase = process.env['IPTVMASTER_PLAYER_BASE'] ?? '/player/';
+
 // Development-only host allowlist for tunneled/preview environments
 // (comma-separated, a leading dot matches subdomains). Empty keeps Vite's
 // default localhost-only behavior.
@@ -17,7 +22,7 @@ const allowedHosts = (process.env['IPTVMASTER_DEV_ALLOWED_HOSTS'] ?? '')
   .filter(Boolean);
 
 export default defineConfig({
-  base: '/player/',
+  base: playerBase,
   plugins: [
     react(),
     {

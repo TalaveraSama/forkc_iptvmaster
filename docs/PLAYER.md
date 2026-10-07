@@ -24,6 +24,13 @@ Open `http://<server>:8080/player/`, enter the server address (pre-filled
 with the current origin) and an output token, and the catalogue loads from
 that profile's published media types.
 
+The player also ships a web manifest with icons, so browsers can install it
+to the home screen, and it can be packaged as an Android APK with Capacitor;
+packaged clients reach the output API cross-origin only when the server sets
+`IPTVMASTER_PLAYER_CORS_ORIGINS` (opt-in allowlist). Step-by-step build
+instructions for the panel, the web player, and the APK live in
+[docs/BUILD.md](./BUILD.md).
+
 ### Development
 
 ```sh

@@ -3801,4 +3801,42 @@ describe('IPTVMaster API', () => {
       `channel id="${secondSource.id}:shared"`,
     );
   });
+
+  it('allows only opted-in packaged player origins in production CORS', async () => {
+    process.env['IPTVMASTER_PLAYER_CORS_ORIGINS'] =
+      'http://localhost, capacitor://localhost ';
+    const app = await buildApp();
+    applications.push(app);
+    delete process.env['IPTVMASTER_PLAYER_CORS_ORIGINS'];
+
+    const allowed = await app.inject({
+      method: 'GET',
+      url: '/player_api.php?username=iptvmaster&password=too-short',
+      headers: { origin: 'http://localhost' },
+    });
+    expect(allowed.headers['access-control-allow-origin']).toBe(
+      'http://localhost',
+    );
+    // No CORS credentials outside development, so administrator sessions
+    // can never travel cross-origin even with the allowlist set.
+    expect(allowed.headers['access-control-allow-credentials']).toBeUndefined();
+
+    const denied = await app.inject({
+      method: 'GET',
+      url: '/player_api.php?username=iptvmaster&password=too-short',
+      headers: { origin: 'https://unlisted.example' },
+    });
+    expect(denied.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('keeps cross-origin denied for the player API without the allowlist', async () => {
+    const app = await buildApp();
+    applications.push(app);
+    const response = await app.inject({
+      method: 'GET',
+      url: '/player_api.php?username=iptvmaster&password=too-short',
+      headers: { origin: 'http://localhost' },
+    });
+    expect(response.headers['access-control-allow-origin']).toBeUndefined();
+  });
 });

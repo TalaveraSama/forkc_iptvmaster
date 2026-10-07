@@ -6,16 +6,20 @@
   "scripts": {
     "build": "tsc -b && vite build",
     "dev": "vite",
+    "android:prepare": "node scripts/prepare-android.mjs",
     "mock": "node mock/xtream-mock.mjs",
     "test": "vitest run",
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
+    "@capacitor/core": "^7.0.0",
     "hls.js": "^1.6.15",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
     "@types/react": "^19.1.9",
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react": "^4.7.0",

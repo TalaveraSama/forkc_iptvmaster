@@ -164,6 +164,8 @@ npm run dev -w @iptvmaster/player    # player on :5174, demo token button
 ## Documentation
 
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — how the pieces fit together
+- [docs/BUILD.md](./docs/BUILD.md) — how to build the panel, the player web
+  app, and the Android APK
 - [docs/PLAYER.md](./docs/PLAYER.md) — the Netflix-style player app,
   white-label branding, and personalized ads
 - [docs/PROXMOX_INSTALL.md](./docs/PROXMOX_INSTALL.md) — production runbook
