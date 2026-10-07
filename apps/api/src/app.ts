@@ -3505,6 +3505,12 @@ export async function buildApp(
     });
     app.setNotFoundHandler((request, reply) => {
       if (request.raw.method === 'GET' && !request.url.startsWith('/api/')) {
+        // The optional player app lives under /player and is a hash-routed
+        // single page, so any unmatched player path serves its own shell
+        // instead of the administrator editor.
+        if (request.url === '/player' || request.url.startsWith('/player/')) {
+          return reply.sendFile('player/index.html');
+        }
         return reply.sendFile('index.html');
       }
       return reply.code(404).send({ error: 'Not found' });

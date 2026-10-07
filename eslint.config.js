@@ -15,7 +15,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['apps/web/**/*.{ts,tsx}'],
+    files: ['apps/web/**/*.{ts,tsx}', 'apps/player/**/*.{ts,tsx}'],
     languageOptions: {
       globals: globals.browser,
       parserOptions: {

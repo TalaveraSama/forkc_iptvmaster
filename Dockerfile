@@ -4,6 +4,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
+COPY apps/player/package.json apps/player/package.json
 COPY packages/core/package.json packages/core/package.json
 RUN npm ci
 
@@ -37,6 +38,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/web/dist ./public
+COPY --from=build /app/apps/player/dist ./public/player
 COPY --from=build /app/packages/core/dist ./packages/core/dist
 COPY deploy/postgres/init ./deploy/postgres/init
 
