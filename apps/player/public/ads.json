@@ -1,0 +1,43 @@
+{
+  "enabled": true,
+  "placements": {
+    "preroll": { "enabled": true, "maxPerHour": 6 },
+    "banner": { "enabled": true, "maxPerHour": 12 },
+    "interstitial": { "enabled": true, "maxPerHour": 3 }
+  },
+  "ads": [
+    {
+      "id": "house-welcome",
+      "type": "message",
+      "label": "Promo",
+      "title": "Bienvenido a tu plataforma",
+      "text": "Guarda tus favoritos en Mi lista y continúa donde lo dejaste.",
+      "clickUrl": "",
+      "durationSec": 6,
+      "skipAfterSec": 2,
+      "weight": 2,
+      "frequencyCapPerDay": 4
+    },
+    {
+      "id": "video-sample",
+      "type": "video",
+      "label": "Anuncio",
+      "mediaUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+      "clickUrl": "https://example.com/promo",
+      "durationSec": 15,
+      "skipAfterSec": 5,
+      "weight": 3,
+      "targeting": { "mediaTypes": ["vod", "series"] }
+    },
+    {
+      "id": "banner-accion",
+      "type": "image",
+      "label": "Anuncio",
+      "mediaUrl": "https://picsum.photos/seed/adbanner/970/250",
+      "clickUrl": "https://example.com/banner",
+      "weight": 1,
+      "frequencyCapPerDay": 10,
+      "targeting": { "categories": ["Acción", "Aventura"] }
+    }
+  ]
+}

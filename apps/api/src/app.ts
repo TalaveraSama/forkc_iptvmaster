@@ -874,10 +874,27 @@ export async function buildApp(
     });
   }
 
+  // Packaged player clients (e.g. the Android APK built from apps/player)
+  // browse the token-authenticated output API from a WebView origin such as
+  // http://localhost or capacitor://localhost. IPTVMASTER_PLAYER_CORS_ORIGINS
+  // is an opt-in comma-separated allowlist of exactly those origins for
+  // production; it stays empty (cross-origin denied) by default. Administrator
+  // endpoints are unaffected: their session cookies are SameSite=Strict and
+  // CORS credentials remain disabled outside development, so no browser can
+  // carry an admin session cross-origin even when the allowlist is set.
+  const playerCorsOrigins = (
+    process.env['IPTVMASTER_PLAYER_CORS_ORIGINS'] ?? ''
+  )
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
   await app.register(cors, {
     origin: developmentMode
       ? /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
-      : false,
+      : playerCorsOrigins.length > 0
+        ? playerCorsOrigins
+        : false,
     credentials: developmentMode,
   });
 
@@ -3503,8 +3520,22 @@ export async function buildApp(
       root: publicDirectory,
       wildcard: false,
     });
+    // The player app is an optional build artifact shipped inside public/.
+    // Without it, /player must fall through to the editor shell instead of
+    // failing on a missing file.
+    const hasPlayerApp = existsSync(
+      resolve(publicDirectory, 'player', 'index.html'),
+    );
+    if (hasPlayerApp) {
+      app.get('/player', (_request, reply) => reply.redirect('/player/'));
+    }
     app.setNotFoundHandler((request, reply) => {
       if (request.raw.method === 'GET' && !request.url.startsWith('/api/')) {
+        // The player is a hash-routed single page, so any unmatched path
+        // under /player serves its own shell rather than the admin editor.
+        if (hasPlayerApp && request.url.startsWith('/player/')) {
+          return reply.sendFile('player/index.html');
+        }
         return reply.sendFile('index.html');
       }
       return reply.code(404).send({ error: 'Not found' });

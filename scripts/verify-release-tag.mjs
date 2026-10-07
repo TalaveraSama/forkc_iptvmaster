@@ -10,6 +10,7 @@ const packageLock = readJson('package-lock.json');
 const workspacePaths = [
   'apps/api/package.json',
   'apps/web/package.json',
+  'apps/player/package.json',
   'packages/core/package.json',
 ];
 const expectedVersion = rootPackage.version;

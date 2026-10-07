@@ -50,6 +50,21 @@ through IPTVMaster.
   compact show list, and a player fetches the episodes for one show only when
   needed instead of indexing every episode in a 100,000+ row M3U.
 
+**A built-in Netflix-style player app**
+
+- An optional viewer-facing web app is served under `/player/` and logs in
+  with the same Xtream-compatible credentials as any player: hero banner,
+  category carousels, film and series sheets with episode browsers, search,
+  continue watching, and favorites. See [docs/PLAYER.md](./docs/PLAYER.md).
+- It is white-label at runtime: `branding.json` (name, logo, colors) and
+  `ads.json` (personalized preroll, banner, and interstitial slots with
+  category, keyword, and hour targeting plus frequency caps) sit next to the
+  built app and can be changed — or previewed from the in-app settings panel —
+  without a rebuild.
+- Playback keeps using the token-authenticated redirect paths, so video still
+  flows directly between the device and the provider; browser-unplayable
+  containers (TS/MKV) get an external-player handoff instead of a relay.
+
 **Daily live-event groups**
 
 - Mark transient sports/event groups as events (individually or in bulk).
@@ -134,13 +149,25 @@ database and `IPTVMASTER_MASTER_KEY` in the app container. Do not mount
 
 ```sh
 npm install
-npm run dev      # core watcher, API on :8080, Vite UI on :5173
+npm run dev      # core watcher, API on :8080, Vite UI on :5173, player on :5174
 npm run check    # format, lint, versions, typecheck, tests, build
+```
+
+The player app can be developed without a provider through a mock of the
+published Xtream API:
+
+```sh
+npm run mock -w @iptvmaster/player   # mock API on :8080
+npm run dev -w @iptvmaster/player    # player on :5174, demo token button
 ```
 
 ## Documentation
 
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — how the pieces fit together
+- [docs/BUILD.md](./docs/BUILD.md) — how to build the panel, the player web
+  app, and the Android APK
+- [docs/PLAYER.md](./docs/PLAYER.md) — the Netflix-style player app,
+  white-label branding, and personalized ads
 - [docs/PROXMOX_INSTALL.md](./docs/PROXMOX_INSTALL.md) — production runbook
   (VM or LXC, backups, upgrades, rollback)
 - [docs/CONTAINER_INSTALL.md](./docs/CONTAINER_INSTALL.md) — prebuilt Docker,

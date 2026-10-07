@@ -34,6 +34,10 @@ Thumbs.db
 .tmp/
 tmp/
 
+# Generated Android platform project for the player APK (docs/APK.md).
+# Regenerate with: cd apps/player && npx cap add android
+apps/player/android/
+
 # Operator notes that name the local host; the repository is public and its
 # history was rewritten to remove LAN addresses.
 *.local.md
