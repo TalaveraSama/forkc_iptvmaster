@@ -1,3 +1,5 @@
+import { getServerBase, getToken } from './connection.js';
+
 const CSRF_COOKIE = 'iptvmaster_csrf';
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -31,22 +33,41 @@ export function installApiSecurity(): void {
       headers.set(name, value),
     );
 
+    // Mobile build: point API calls at the configured server and authenticate
+    // with the bearer token instead of the same-origin session cookie. The
+    // rewrite only applies to string/URL inputs (the app never issues API
+    // calls as Request objects), so request bodies carried in `init` are kept.
+    const serverBase = getServerBase();
+    const token = getToken();
+    let target = url;
+    if (serverBase && !request && url.pathname.startsWith('/api/')) {
+      target = new URL(url.pathname + url.search, serverBase);
+    }
+    const usingToken = Boolean(serverBase && token);
+    if (usingToken) {
+      headers.set('authorization', `Bearer ${token}`);
+    }
+
     if (
-      url.origin === window.location.origin &&
-      url.pathname.startsWith('/api/') &&
+      target.origin === window.location.origin &&
+      target.pathname.startsWith('/api/') &&
       UNSAFE_METHODS.has(method)
     ) {
       const csrfToken = readCookie(CSRF_COOKIE);
       if (csrfToken) headers.set('x-iptvmaster-csrf', csrfToken);
     }
 
-    const response = await nativeFetch(input, {
+    const fetchInput = target === url ? input : target.toString();
+    const response = await nativeFetch(fetchInput, {
       ...init,
       method,
       headers,
-      credentials: init.credentials ?? 'same-origin',
+      credentials: usingToken ? 'omit' : (init.credentials ?? 'same-origin'),
     });
-    if (response.status === 401 && !url.pathname.startsWith('/api/v1/auth/')) {
+    if (
+      response.status === 401 &&
+      !target.pathname.startsWith('/api/v1/auth/')
+    ) {
       window.dispatchEvent(new Event('iptvmaster:authentication-required'));
     }
     return response;

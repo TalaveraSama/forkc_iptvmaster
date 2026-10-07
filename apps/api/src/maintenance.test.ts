@@ -24,7 +24,11 @@ describe('database maintenance automation', () => {
     // A task without snapshot history still reports the pruning it did not do,
     // so the log line has one shape whatever is configured.
     expect(logger.info).toHaveBeenCalledWith(
-      { expiredSessionsRemoved: 4, prunedSnapshots: 0 },
+      {
+        expiredSessionsRemoved: 4,
+        prunedSnapshots: 0,
+        expiredApiTokensRemoved: 0,
+      },
       'Database maintenance finished',
     );
     expect(logger.warn).not.toHaveBeenCalled();

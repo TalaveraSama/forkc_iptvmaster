@@ -12,6 +12,8 @@
   ],
   "scripts": {
     "build": "npm run build -w @iptvmaster/core && npm run build -w @iptvmaster/api && npm run build -w @iptvmaster/web",
+    "build:mobile": "npm run build:mobile -w @iptvmaster/web && npm run sync --prefix mobile",
+    "mobile:apk": "npm run build:mobile && npm run build:apk --prefix mobile",
     "dev": "npm run build -w @iptvmaster/core && concurrently -n core,api,web -c blue,green,magenta \"npm run dev -w @iptvmaster/core\" \"npm run dev -w @iptvmaster/api\" \"npm run dev -w @iptvmaster/web\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 
+import { apiUrl } from '../connection.js';
+
 interface ChannelLogoProps {
   /**
    * Same-origin logo endpoint for this channel, or undefined when the channel
@@ -22,7 +24,7 @@ export function channelLogoSource(
   hasLogo: boolean,
 ): string | undefined {
   if (!sourceId || !hasLogo) return undefined;
-  return `/api/v1/sources/${sourceId}/channels/${channelId}/logo`;
+  return apiUrl(`/api/v1/sources/${sourceId}/channels/${channelId}/logo`);
 }
 
 export function guideLogoSource(
@@ -31,7 +33,9 @@ export function guideLogoSource(
   hasLogo: boolean,
 ): string | undefined {
   if (!epgSourceId || !hasLogo) return undefined;
-  return `/api/v1/epg-sources/${epgSourceId}/logo?channelId=${encodeURIComponent(channelId)}`;
+  return apiUrl(
+    `/api/v1/epg-sources/${epgSourceId}/logo?channelId=${encodeURIComponent(channelId)}`,
+  );
 }
 
 /**

@@ -4,7 +4,14 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'],
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      // Capacitor mobile scaffold: contains generated native project and the
+      // copied web bundle, none of which are part of the TypeScript project.
+      'mobile/**',
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,

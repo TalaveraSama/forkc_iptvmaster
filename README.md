@@ -149,6 +149,8 @@ npm run check    # format, lint, versions, typecheck, tests, build
 - [docs/DEPLOY.md](./docs/DEPLOY.md) — pushing a build to a LAN host over SSH
 - [docs/SYNOLOGY.md](./docs/SYNOLOGY.md) — running on a Synology NAS
 - [docs/RELEASES.md](./docs/RELEASES.md) — versioned images and GHCR releases
+- [docs/MOBILE_APP.md](./docs/MOBILE_APP.md) — optional Android app that bundles
+  the admin panel (`mobile/`), with bearer-token auth and opt-in CORS
 - [SECURITY.md](./SECURITY.md) — threat model and reporting
 
 ## License

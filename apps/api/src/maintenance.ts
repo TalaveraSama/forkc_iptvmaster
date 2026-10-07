@@ -5,6 +5,8 @@ export interface MaintenanceTask {
   cleanupExpiredSessions(): Promise<number>;
   /** Older snapshots beyond the retention limit, with their upstream items. */
   pruneSnapshots?(): Promise<number>;
+  /** Expired long-lived mobile API tokens. */
+  cleanupExpiredApiTokens?(): Promise<number>;
 }
 
 export interface MaintenanceLogger {
@@ -21,6 +23,7 @@ export interface MaintenanceStatus {
   lastRunFinishedAt?: string;
   lastExpiredSessionsRemoved?: number;
   lastPrunedSnapshots?: number;
+  lastExpiredApiTokensRemoved?: number;
   lastSafeError?: string;
 }
 
@@ -39,6 +42,7 @@ export class MaintenanceScheduler {
   #lastRunFinishedAt?: string;
   #lastExpiredSessionsRemoved?: number;
   #lastPrunedSnapshots?: number;
+  #lastExpiredApiTokensRemoved?: number;
   #lastSafeError?: string;
 
   constructor(
@@ -89,6 +93,9 @@ export class MaintenanceScheduler {
       ...(this.#lastPrunedSnapshots !== undefined
         ? { lastPrunedSnapshots: this.#lastPrunedSnapshots }
         : {}),
+      ...(this.#lastExpiredApiTokensRemoved !== undefined
+        ? { lastExpiredApiTokensRemoved: this.#lastExpiredApiTokensRemoved }
+        : {}),
       ...(this.#lastSafeError ? { lastSafeError: this.#lastSafeError } : {}),
     };
   }
@@ -108,8 +115,11 @@ export class MaintenanceScheduler {
         // more index maintenance than the last.
         const prunedSnapshots = (await this.#task.pruneSnapshots?.()) ?? 0;
         this.#lastPrunedSnapshots = prunedSnapshots;
+        const expiredApiTokensRemoved =
+          (await this.#task.cleanupExpiredApiTokens?.()) ?? 0;
+        this.#lastExpiredApiTokensRemoved = expiredApiTokensRemoved;
         this.#logger.info(
-          { expiredSessionsRemoved, prunedSnapshots },
+          { expiredSessionsRemoved, prunedSnapshots, expiredApiTokensRemoved },
           'Database maintenance finished',
         );
       });

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  IPTVMaster is designed for trusted LAN use and its server is normally reached
+  over plain HTTP (http://<server>:8080). Android blocks cleartext by default,
+  so it is explicitly permitted here for the app to reach the server.
+
+  This is a deliberate LAN-only trade-off documented in mobile/README.md. If you
+  terminate TLS (docs/HTTPS.md) you can drop this file, remove the
+  android:networkSecurityConfig attribute, and set cleartextTrafficPermitted to
+  false to forbid plaintext entirely.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -1,0 +1,20 @@
+{
+  "name": "iptvmaster-mobile",
+  "version": "0.2.2",
+  "private": true,
+  "description": "Capacitor wrapper that packages the IPTVMaster admin panel as an installable Android app.",
+  "scripts": {
+    "sync:web": "node ./sync-web.mjs",
+    "add:android": "cap add android",
+    "sync": "npm run sync:web && cap sync android",
+    "open:android": "cap open android",
+    "build:apk": "cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2"
+  }
+}

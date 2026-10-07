@@ -40,6 +40,20 @@ export interface NewAdminSession {
   expiresAt: string;
 }
 
+export interface StoredApiToken {
+  adminId: string;
+  username: string;
+  tokenHash: string;
+  expiresAt: string;
+}
+
+export interface NewApiToken {
+  adminId: string;
+  tokenHash: string;
+  label?: string;
+  expiresAt: string;
+}
+
 export interface AuthRepository {
   countAdministrators(): Promise<number>;
   createAdministrator(
@@ -52,6 +66,16 @@ export interface AuthRepository {
   findSession(tokenHash: string): Promise<StoredAdminSession | null>;
   deleteSession(tokenHash: string): Promise<void>;
   cleanupExpiredSessions(): Promise<number>;
+  /**
+   * Optional long-lived bearer-token storage for the bundled mobile app.
+   * Repositories that do not implement these simply do not support token
+   * authentication; the API then rejects bearer requests instead of issuing
+   * them. Kept optional so existing in-memory test doubles remain valid.
+   */
+  createApiToken?(token: NewApiToken): Promise<void>;
+  findApiToken?(tokenHash: string): Promise<StoredApiToken | null>;
+  deleteApiToken?(tokenHash: string): Promise<void>;
+  cleanupExpiredApiTokens?(): Promise<number>;
   healthCheck(): Promise<void>;
   close?(): Promise<void>;
 }
@@ -142,6 +166,19 @@ export class AuthService {
   }
 
   async login(username: string, password: string): Promise<CreatedAuthSession> {
+    const administrator = await this.verifyAdministrator(username, password);
+    return this.issueSession(administrator);
+  }
+
+  /**
+   * Verify credentials and return the administrator without creating a
+   * session. Used by the token endpoint so a mobile sign-in issues a bearer
+   * token instead of a short-lived cookie session.
+   */
+  async verifyAdministrator(
+    username: string,
+    password: string,
+  ): Promise<StoredAdministrator> {
     const administrator = await this.repository.findAdministrator(
       normalizeUsername(username),
     );
@@ -159,7 +196,52 @@ export class AuthService {
     if (!administrator || !passwordMatches) {
       throw new InvalidCredentialsError('Invalid username or password');
     }
-    return this.issueSession(administrator);
+    return administrator;
+  }
+
+  /**
+   * Issue a long-lived bearer token for the given administrator. The raw token
+   * is returned exactly once; only its SHA-256 hash is persisted. Throws when
+   * the backing repository does not support token storage.
+   */
+  async issueApiToken(
+    adminId: string,
+    ttlMs: number,
+    label?: string,
+  ): Promise<string> {
+    if (!this.repository.createApiToken) {
+      throw new Error('API token storage is not available');
+    }
+    const token = randomBytes(32).toString('base64url');
+    await this.repository.createApiToken({
+      adminId,
+      tokenHash: hashAuthToken(token),
+      ...(label ? { label } : {}),
+      expiresAt: new Date(Date.now() + ttlMs).toISOString(),
+    });
+    return token;
+  }
+
+  async authenticateApiToken(
+    token: string | undefined,
+  ): Promise<{ adminId: string; username: string } | null> {
+    if (!token || !this.repository.findApiToken) return null;
+    const record = await this.repository.findApiToken(hashAuthToken(token));
+    if (!record || Date.parse(record.expiresAt) <= Date.now()) return null;
+    return { adminId: record.adminId, username: record.username };
+  }
+
+  async revokeApiToken(token: string | undefined): Promise<void> {
+    if (!token || !this.repository.deleteApiToken) return;
+    await this.repository.deleteApiToken(hashAuthToken(token));
+  }
+
+  supportsApiTokens(): boolean {
+    return Boolean(
+      this.repository.createApiToken &&
+      this.repository.findApiToken &&
+      this.repository.deleteApiToken,
+    );
   }
 
   async authenticate(
@@ -188,6 +270,11 @@ export class AuthService {
 
   async cleanupExpiredSessions(): Promise<number> {
     return this.repository.cleanupExpiredSessions();
+  }
+
+  async cleanupExpiredApiTokens(): Promise<number> {
+    if (!this.repository.cleanupExpiredApiTokens) return 0;
+    return this.repository.cleanupExpiredApiTokens();
   }
 
   async healthCheck(): Promise<void> {
@@ -400,6 +487,65 @@ export class PostgresAuthRepository implements AuthRepository {
   async cleanupExpiredSessions(): Promise<number> {
     const result = await this.pool.query(
       'DELETE FROM admin_session WHERE expires_at <= NOW()',
+    );
+    return result.rowCount ?? 0;
+  }
+
+  async createApiToken(token: NewApiToken): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'DELETE FROM admin_api_token WHERE expires_at <= NOW()',
+      );
+      await client.query(
+        `INSERT INTO admin_api_token (admin_id, token_hash, label, expires_at)
+         VALUES ($1, $2, $3, $4)`,
+        [token.adminId, token.tokenHash, token.label ?? null, token.expiresAt],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async findApiToken(tokenHash: string): Promise<StoredApiToken | null> {
+    const result = await this.pool.query<{
+      admin_id: string;
+      username: string;
+      token_hash: string;
+      expires_at: Date | string;
+    }>(
+      `SELECT token.admin_id, administrator.username, token.token_hash,
+              token.expires_at
+       FROM admin_api_token token
+       JOIN admin_account administrator ON administrator.id = token.admin_id
+       WHERE token.token_hash = $1 AND token.expires_at > NOW()`,
+      [tokenHash],
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          adminId: row.admin_id,
+          username: row.username,
+          tokenHash: row.token_hash,
+          expiresAt: new Date(row.expires_at).toISOString(),
+        }
+      : null;
+  }
+
+  async deleteApiToken(tokenHash: string): Promise<void> {
+    await this.pool.query('DELETE FROM admin_api_token WHERE token_hash = $1', [
+      tokenHash,
+    ]);
+  }
+
+  async cleanupExpiredApiTokens(): Promise<number> {
+    const result = await this.pool.query(
+      'DELETE FROM admin_api_token WHERE expires_at <= NOW()',
     );
     return result.rowCount ?? 0;
   }

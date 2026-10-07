@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">IPTVMaster</string>
+    <string name="title_activity_main">IPTVMaster</string>
+    <string name="package_name">com.iptvmaster.app</string>
+    <string name="custom_url_scheme">com.iptvmaster.app</string>
+</resources>

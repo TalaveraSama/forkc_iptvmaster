@@ -1,6 +1,7 @@
 import { type DragEvent, type FormEvent, useEffect, useState } from 'react';
 
 import { channelLogoSource, ChannelLogo } from './components/ChannelLogo.js';
+import { serverOrigin } from './connection.js';
 import { IconChevronDown, IconChevronUp, IconGrip, IconTv } from './icons.js';
 import { showToast } from './toast.js';
 import { AutomationSettings } from './workspaces/AutomationSettings.js';
@@ -4535,10 +4536,10 @@ export function SourceSetup({ workspace, lineupView }: SourceSetupProps) {
                   )
                   .join(' + ');
                 const playlistOutputUrl = profile.accessToken
-                  ? `${window.location.origin}/m/${profile.accessToken}`
+                  ? `${serverOrigin()}/m/${profile.accessToken}`
                   : '';
                 const epgOutputUrl = profile.accessToken
-                  ? `${window.location.origin}/e/${profile.accessToken}`
+                  ? `${serverOrigin()}/e/${profile.accessToken}`
                   : '';
                 const mediaTypes = profile.mediaTypes ?? ['live'];
                 const splitPlaylistUrls = mediaTypes.map((mediaType) => ({
@@ -4666,7 +4667,7 @@ export function SourceSetup({ workspace, lineupView }: SourceSetupProps) {
                             {
                               key: 'server',
                               label: 'Server URL',
-                              value: window.location.origin,
+                              value: serverOrigin(),
                             },
                             {
                               key: 'username',

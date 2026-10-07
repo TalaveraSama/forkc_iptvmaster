@@ -453,6 +453,7 @@ export interface BuildAppOptions {
   maintenanceIntervalMs?: number;
   maintenanceInitialDelayMs?: number;
   sessionTtlMs?: number;
+  apiTokenTtlMs?: number;
   secureCookies?: boolean;
   developmentMode?: boolean;
 }
@@ -623,6 +624,42 @@ function clientRateLimitKey(request: FastifyRequest): string {
   return `login|${request.ip}`;
 }
 
+/**
+ * Extract a bearer token from the Authorization header. Returns undefined for
+ * any other scheme or a missing header.
+ */
+function parseBearerToken(request: FastifyRequest): string | undefined {
+  const header = request.headers.authorization;
+  if (typeof header !== 'string') return undefined;
+  const match = /^Bearer[ ]+(.+)$/i.exec(header.trim());
+  return match?.[1]?.trim() || undefined;
+}
+
+/**
+ * Origins allowed to call the API cross-origin for the bundled mobile app. A
+ * Capacitor WebView is served from `https://localhost` (or `capacitor://` on
+ * older setups) and reaches the server on another host, so its fetch requests
+ * are cross-origin. Credentials are never enabled for these origins because
+ * the app authenticates with a bearer token, not cookies. Operators can narrow
+ * or extend the list; a value of `none` disables cross-origin mobile access.
+ */
+const DEFAULT_MOBILE_ORIGINS = [
+  'https://localhost',
+  'http://localhost',
+  'capacitor://localhost',
+];
+
+function resolveMobileOrigins(): Set<string> {
+  const raw =
+    process.env['IPTVMASTER_MOBILE_ORIGINS'] ??
+    DEFAULT_MOBILE_ORIGINS.join(',');
+  const entries = raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0 && value !== 'none');
+  return new Set(entries);
+}
+
 export async function buildApp(
   options: BuildAppOptions = {},
 ): Promise<FastifyInstance> {
@@ -713,6 +750,14 @@ export async function buildApp(
   const sessionTtlMs =
     options.sessionTtlMs ??
     positiveEnvironmentNumber('IPTVMASTER_SESSION_HOURS', 168) *
+      60 *
+      60 *
+      1_000;
+  // Long-lived bearer tokens for the bundled mobile app. Defaults to 90 days;
+  // each token is individually revocable and pruned once it expires.
+  const apiTokenTtlMs =
+    options.apiTokenTtlMs ??
+    positiveEnvironmentNumber('IPTVMASTER_API_TOKEN_HOURS', 2160) *
       60 *
       60 *
       1_000;
@@ -818,6 +863,8 @@ export async function buildApp(
                     ).pruneSnapshots(),
                 }
               : {}),
+            cleanupExpiredApiTokens: () =>
+              authService.cleanupExpiredApiTokens(),
           },
           app.log,
           {
@@ -874,11 +921,25 @@ export async function buildApp(
     });
   }
 
+  const mobileOrigins = resolveMobileOrigins();
   await app.register(cors, {
-    origin: developmentMode
-      ? /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
-      : false,
+    origin: (origin, callback) => {
+      // A missing Origin is a non-browser client (IPTV player, curl) or a
+      // same-origin request; CORS headers are irrelevant there.
+      if (!origin) return callback(null, false);
+      if (
+        developmentMode &&
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+      // Bundled mobile app (Capacitor) origins. Credentials stay disabled for
+      // these: the app authenticates with a bearer token, never cookies.
+      if (mobileOrigins.has(origin)) return callback(null, true);
+      return callback(null, false);
+    },
     credentials: developmentMode,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
   // Generated guides can be tens of megabytes of repetitive text. Compress
@@ -924,7 +985,25 @@ export async function buildApp(
   app.addHook('onRequest', async (request, reply) => {
     if (!authService) return;
     const path = request.url.split('?', 1)[0] ?? request.url;
-    if (!path.startsWith('/api/v1/') || path.startsWith('/api/v1/auth/')) {
+    if (!path.startsWith('/api/v1/')) {
+      return;
+    }
+    // Bearer-token authentication for the bundled mobile app. A bearer token
+    // is not an ambient credential the browser attaches automatically, so a
+    // token-authenticated request is exempt from the cookie CSRF/same-origin
+    // checks that protect the browser editor.
+    const bearerToken = parseBearerToken(request);
+    if (bearerToken) {
+      const tokenSession = await authService.authenticateApiToken(bearerToken);
+      if (!tokenSession) {
+        // Let the status probe report "not authenticated" cleanly instead of
+        // erroring, so the app can fall back to its sign-in screen.
+        if (path === '/api/v1/auth/status') return;
+        return reply.code(401).send({ error: 'Authentication required' });
+      }
+      return;
+    }
+    if (path.startsWith('/api/v1/auth/')) {
       return;
     }
     const cookies = requestCookies(request);
@@ -1011,6 +1090,20 @@ export async function buildApp(
       };
     }
     const setupRequired = await authService.isSetupRequired();
+    // The bundled mobile app validates its stored bearer token here instead of
+    // relying on cookies.
+    const bearerToken = parseBearerToken(request);
+    if (bearerToken) {
+      const tokenSession = await authService.authenticateApiToken(bearerToken);
+      return tokenSession
+        ? {
+            enabled: true,
+            setupRequired,
+            authenticated: true,
+            username: tokenSession.username,
+          }
+        : { enabled: true, setupRequired, authenticated: false };
+    }
     const cookies = requestCookies(request);
     const session = await authService.authenticate(cookies[SESSION_COOKIE]);
     const csrfToken = cookies[CSRF_COOKIE];
@@ -1142,6 +1235,72 @@ export async function buildApp(
     }
     await authService.logout(cookies[SESSION_COOKIE]);
     clearSessionCookies(reply, secureCookies);
+    return reply.code(204).send();
+  });
+
+  // Exchange administrator credentials for a long-lived bearer token used by
+  // the bundled mobile app. Unlike login this is intentionally reachable
+  // cross-origin (the app is served from a local Capacitor origin) and does
+  // not set cookies; the token is returned once and stored hashed server-side.
+  app.post('/api/v1/auth/token', async (request, reply) => {
+    if (!authService) {
+      return reply.code(404).send({ error: 'Authentication is not enabled' });
+    }
+    if (!authService.supportsApiTokens()) {
+      return reply.code(501).send({ error: 'API tokens are not available' });
+    }
+    const parsed = administratorLoginSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: validationMessage(parsed.error) });
+    }
+    if (await authService.isSetupRequired()) {
+      return reply.code(409).send({ error: 'Administrator setup is required' });
+    }
+    const rateLimitKey = clientRateLimitKey(request);
+    const retryAfter = loginRateLimiter.retryAfterSeconds(rateLimitKey);
+    if (retryAfter > 0) {
+      return reply
+        .header('retry-after', retryAfter)
+        .code(429)
+        .send({ error: 'Too many login attempts; try again later' });
+    }
+    const blockedFor = loginRateLimiter.recordFailure(rateLimitKey);
+    try {
+      const administrator = await authService.verifyAdministrator(
+        parsed.data.username,
+        parsed.data.password,
+      );
+      loginRateLimiter.reset(rateLimitKey);
+      const token = await authService.issueApiToken(
+        administrator.id,
+        apiTokenTtlMs,
+        'mobile',
+      );
+      return {
+        authenticated: true,
+        username: administrator.username,
+        token,
+        expiresAt: new Date(Date.now() + apiTokenTtlMs).toISOString(),
+      };
+    } catch (error) {
+      if (error instanceof InvalidCredentialsError) {
+        if (blockedFor > 0) reply.header('retry-after', blockedFor);
+        return reply
+          .code(blockedFor > 0 ? 429 : 401)
+          .send({ error: error.message });
+      }
+      throw error;
+    }
+  });
+
+  // Revoke the bearer token presented on this request (mobile sign-out).
+  app.delete('/api/v1/auth/token', async (request, reply) => {
+    if (!authService) return reply.code(204).send();
+    const bearerToken = parseBearerToken(request);
+    if (!bearerToken) {
+      return reply.code(401).send({ error: 'Authentication required' });
+    }
+    await authService.revokeApiToken(bearerToken);
     return reply.code(204).send();
   });
 
