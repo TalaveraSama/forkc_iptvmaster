@@ -1,0 +1,30 @@
+{
+  "name": "@iptvmaster/core",
+  "version": "0.2.2",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "ipaddr.js": "^2.5.0",
+    "luxon": "^3.7.1",
+    "saxes": "^6.0.0",
+    "undici": "^8.10.0"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.6.2"
+  },
+  "license": "AGPL-3.0-only"
+}

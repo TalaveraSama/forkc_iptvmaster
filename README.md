@@ -1,0 +1,160 @@
+# IPTVMaster
+
+IPTVMaster is a private, self-hosted manager for live-TV playlists and EPG
+data. It sits between your IPTV provider and your player: it imports the
+provider's changing M3U and XMLTV feeds on a schedule, preserves your permanent
+edits across those changes, and publishes clean, token-protected playlist and
+guide URLs that any IPTV player can consume.
+
+It does not proxy, relay, transcode, record, or redistribute video — published
+playlists contain direct provider stream URLs, so playback traffic never passes
+through IPTVMaster.
+
+## What it does
+
+**Lineup editing that survives provider refreshes**
+
+- Rename provider groups, build custom categories, and reorder groups and
+  channels with drag or keyboard/touch-friendly arrow buttons.
+- Every group that reaches the playlist — provider, live-event, or custom —
+  is published or hidden from one list. A custom category is a slice of a
+  provider group, so it carries its own visibility rather than following the
+  group it was carved from.
+- Per-channel renames, logos, visibility, and ordering, with bulk selection
+  tools for large playlists.
+- Provider changes are reconciled conservatively: safe matches follow
+  automatically, uncertain ones go to a review queue with an audit trail, and
+  manual matches are locked until you release them.
+- Providers rotate channel identifiers, so entries regularly stop matching. A
+  channel absent from five consecutive refreshes is retired along with its
+  edits (`CHANNEL_RETENTION_REFRESHES`); a refresh that returns unchanged data
+  does not count. Groups are never retired automatically.
+- Groups you do not want at all can be removed outright. Their channels are
+  deleted and refreshes will not import them again, but the group is remembered
+  and can be restored at any time.
+
+**Films and series, without the bulk**
+
+- A provider's catalogue dwarfs its live lineup — hundreds of thousands of
+  titles against tens of thousands of channels is normal. Every refresh records
+  which categories exist and how large they are, but stores nothing until you
+  ask for a category by name.
+- Movies and series are listed in their own sections and switched on or off
+  like live groups. Switching one on keeps its titles from the next refresh;
+  switching it off removes them at once.
+- An output can carry any combination of content. Combined outputs also expose
+  dedicated Live TV, Movies, and Series M3U links under the same revocable
+  token for players that cannot reliably split a large mixed playlist.
+- Xtream-compatible login details are generated alongside the URLs. This is
+  the recommended connection for large catalogues: series are published as a
+  compact show list, and a player fetches the episodes for one show only when
+  needed instead of indexing every episode in a 100,000+ row M3U.
+
+**Daily live-event groups**
+
+- Mark transient sports/event groups as events (individually or in bulk).
+  Event entries are localized from the provider timezone to yours, sorted by
+  start time, and placeholder entries ("please reload your playlist") are
+  hidden by pattern.
+- Publish or hide whole event groups with one click.
+
+**A shared EPG pool**
+
+- Provider guides and any number of custom XMLTV guides are imported into one
+  pool that every provider's channels can map against.
+- Exact-ID and unique-name matches are automatic, with the provider's own
+  guide always taking priority; ambiguous channels show their real candidates
+  for one-click resolution, and a type-ahead picker searches the whole pool.
+- Channels that can never have guide data (decorative separators, event
+  streams) can be excluded from coverage counting — separators are detected
+  and offered as a one-click bulk exclusion.
+
+**Operations**
+
+- A status board shows per-provider channel counts, EPG coverage, last
+  refresh results, and anything that needs your attention.
+- Non-overlapping scheduled refreshes with bounded retries; rejected or failed
+  feeds leave the last-known-good data active. How often playlists and guides
+  are checked is editable from the overview page, and each can be paused.
+- Retained playlist snapshots with two-step restore and a full activity log.
+- Verified PostgreSQL backups with a daily systemd timer and rehearsable
+  transactional restore.
+
+**Security posture**
+
+- Single local administrator account (scrypt, database-backed revocable
+  sessions, CSRF protection, login throttling).
+- Provider and guide URLs are encrypted with AES-256-GCM before storage and
+  never displayed again.
+- Output URLs are long random tokens, individually revocable; only their
+  hashes are stored for verification.
+- Designed for trusted LAN use over a stable local address: no DNS entry,
+  domain, or certificate required. Keep it off the public internet — see
+  [SECURITY.md](./SECURITY.md). If your network is shared more widely, an
+  optional overlay adds HTTPS; see [docs/HTTPS.md](./docs/HTTPS.md).
+
+## Requirements
+
+- Docker with the Compose plugin or rootless Podman with a Compose provider
+  (deployment), or Node.js 22+ and npm 10+ (development)
+- PostgreSQL 17 (provided by the compose stack)
+
+## Quick start
+
+```sh
+cp .env.example .env
+# Put these generated values into .env; keep both private.
+openssl rand -hex 32       # POSTGRES_PASSWORD
+openssl rand -base64 32    # IPTVMASTER_MASTER_KEY
+docker compose pull
+docker compose up -d
+docker compose ps
+```
+
+The public, version-pinned image is downloaded from GHCR. The image contains
+the database migrations and applies them before port 8080 opens, so there is
+no separate migration container or host-mounted migration directory. Rootless
+Podman users can replace `docker compose` with `podman compose`.
+
+Open `http://localhost:8080`, create the administrator account, add your
+provider's M3U (and optional XMLTV) URL, import, and shape the lineup. Then
+create an output. For Live TV, use the generated `/m/<token>` playlist and
+`/e/<token>` guide addresses. For Movies and Series, prefer the Xtream login
+shown on the output card: the server is the IPTVMaster address, the username is
+`iptvmaster`, and the password is that output's revocable access token.
+
+Losing `IPTVMASTER_MASTER_KEY` makes stored provider credentials
+unrecoverable; back it up separately and never commit it.
+
+An app-only custom stack still needs PostgreSQL. Set `DATABASE_URL` to that
+database and `IPTVMASTER_MASTER_KEY` in the app container. Do not mount
+`/app/data`; IPTVMaster does not use a local database file.
+
+## Development
+
+```sh
+npm install
+npm run dev      # core watcher, API on :8080, Vite UI on :5173
+npm run check    # format, lint, versions, typecheck, tests, build
+```
+
+## Documentation
+
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — how the pieces fit together
+- [docs/PROXMOX_INSTALL.md](./docs/PROXMOX_INSTALL.md) — production runbook
+  (VM or LXC, backups, upgrades, rollback)
+- [docs/CONTAINER_INSTALL.md](./docs/CONTAINER_INSTALL.md) — prebuilt Docker,
+  rootless Podman, Traefik, and external PostgreSQL installs
+- [docs/HTTPS.md](./docs/HTTPS.md) — optional TLS deployment
+- [docs/DEPLOY.md](./docs/DEPLOY.md) — pushing a build to a LAN host over SSH
+- [docs/SYNOLOGY.md](./docs/SYNOLOGY.md) — running on a Synology NAS
+- [docs/RELEASES.md](./docs/RELEASES.md) — versioned images and GHCR releases
+- [SECURITY.md](./SECURITY.md) — threat model and reporting
+
+## License
+
+Licensed under the [GNU Affero General Public License v3.0](./LICENSE).
+
+In short: you may use, modify, and redistribute IPTVMaster, but modified
+versions must remain open source under the same license — including versions
+you run as a network service for others.

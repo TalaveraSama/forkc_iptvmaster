@@ -1,0 +1,50 @@
+# Terminates TLS for IPTVMaster and forwards to the application over the
+# Compose network. IPTVMASTER_TLS selects how the certificate is obtained:
+#
+#   internal                      Caddy's own local CA (install its root on
+#                                 each client, see docs/HTTPS.md)
+#   /path/cert.pem /path/key.pem  a certificate you provide, mounted read-only
+#   you@example.com               an ACME account email for a public hostname
+#
+{
+	admin off
+	# Port 80 is handled entirely by the site below, so that the plain-output
+	# exception applies to the host name as well as to bare addresses.
+	auto_https disable_redirects
+}
+
+{$IPTVMASTER_HOSTNAME} {
+	tls {$IPTVMASTER_TLS}
+
+	encode zstd gzip
+	reverse_proxy app:8080 {
+		header_up X-Forwarded-Proto https
+	}
+
+	header {
+		# The application sets its own security headers; this one only makes
+		# sense once TLS actually terminates here.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+}
+
+# Plain HTTP, for any host name or address that reaches port 80.
+#
+# Everything is redirected to HTTPS, so the editor and its session cookie are
+# never served in the clear. The one exception is opt-in: many IPTV players
+# reject a privately issued certificate, so IPTVMASTER_PLAIN_OUTPUT_PATHS may
+# be set to `/m/* /e/* /p/*` to keep serving the tokenized playlist and guide
+# over HTTP while players catch up. Those URLs carry a bearer token, so use it
+# only on a trusted network. Left unset, nothing matches and everything is
+# redirected.
+http://{$IPTVMASTER_HOSTNAME}, http:// {
+	@outputs path {$IPTVMASTER_PLAIN_OUTPUT_PATHS:/__plain_output_disabled__}
+
+	handle @outputs {
+		reverse_proxy app:8080
+	}
+
+	handle {
+		redir https://{$IPTVMASTER_HOSTNAME}{uri} permanent
+	}
+}

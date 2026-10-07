@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Build versioned container
+        run: |
+          docker build \
+            --build-arg IPTVMASTER_VERSION=ci \
+            --build-arg "IPTVMASTER_REVISION=$GITHUB_SHA" \
+            --tag iptvmaster:ci .
+          test "$(docker image inspect iptvmaster:ci --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')" = ci
+          test "$(docker image inspect iptvmaster:ci --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$GITHUB_SHA"
+      - name: Verify database backup and restore
+        run: bash scripts/verify-backup-restore.sh
+        env:
+          IPTVMASTER_IMAGE: iptvmaster:ci
+          VERIFY_SKIP_BUILD: 'true'

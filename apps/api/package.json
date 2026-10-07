@@ -1,0 +1,26 @@
+{
+  "name": "@iptvmaster/api",
+  "version": "0.2.2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fastify/compress": "^9.2.0",
+    "@fastify/cors": "^11.1.0",
+    "@fastify/static": "^10.1.2",
+    "@iptvmaster/core": "*",
+    "fastify": "^5.4.0",
+    "pg": "^8.16.3",
+    "zod": "^4.0.14"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.5"
+  },
+  "license": "AGPL-3.0-only"
+}
